@@ -1,4 +1,4 @@
-ARGS = -arch sm_70 -O3
+ARGS = -arch sm_50 -O3
 
 all: host gpu matrix sin checkDimension defineGridBlock checkThreadIndex
 

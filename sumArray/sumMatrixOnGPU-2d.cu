@@ -78,6 +78,7 @@ void sumMatrixOnHost(float *A, float *B, float *C, const int nx, const int ny)
         for (int ix=0; ix<nx; ix++)
         {
             ic[ix] = ia[ix] + ib[ix];
+            //printf("CPU Add: %f + %f = %f.\n", ia[ix], ib[ix], ic[ix]);
         }
         
         ia += nx;
@@ -92,9 +93,12 @@ __global__ void sumMatrixOnGPU(float *MatA, float *MatB, float *MatC, int nx, in
     unsigned int iy = threadIdx.y + blockIdx.y * blockDim.y;
     unsigned int idx = iy * nx + ix;
 
+    //printf("nx: %d, ny: %d, ix: %d, iy: %d, idx: %d\n", nx, ny, ix, iy, idx);
+
     if (ix<nx && iy<ny)
     {
         MatC[idx] = MatA[idx] + MatB[idx];
+        //printf("GPU Add: %f + %f = %f.\n", MatA[idx], MatB[idx], MatC[idx]);
     }
 }
 
@@ -141,13 +145,13 @@ int main(int argc, char **argv)
 	
 	// invoke kernel at host side
 	int dimx = 32;
-    int dimy = 1;
+    int dimy = 32;
 
     if (argc > 2)
     {
-        printf("Customized dimx: %d, dimy %d.\n", dimx, dimy);
         dimx = atoi(argv[1]);
         dimy = atoi(argv[2]);
+        printf("Customized dimx: %d, dimy %d.\n", dimx, dimy);
     }
 
     dim3 block (dimx, dimy);
@@ -156,7 +160,7 @@ int main(int argc, char **argv)
     // start time
 	double time_gpu_start = cpuSecond();
 
-	sumMatrixOnGPU <<<grid, block>>> (d_A, d_B, d_C, nx, ny);
+	sumMatrixOnGPU<<<grid, block>>>(d_A, d_B, d_C, nx, ny);
     cudaDeviceSynchronize();
     
     // gpu finished time
@@ -190,10 +194,13 @@ int main(int argc, char **argv)
 	free(h_B);
 	free(hostRef);
 	free(gpuRef);
+    
+    double cpu_time = time_cpu_finish - time_cpu_start;
+    double gpu_time = time_gpu_finish - time_gpu_start;
 
 	printf("CPU job Done in %lf. \n", time_cpu_finish - time_cpu_start);
 	printf("GPU job Done in %lf. \n", time_gpu_finish - time_gpu_start);
-
+    printf("Accelarate ratio: %lf%%. \n", (cpu_time/gpu_time)*100.0);
 	return(0);
 }
 

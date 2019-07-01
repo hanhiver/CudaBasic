@@ -67,6 +67,38 @@ __global__ void sumArraysOnGPU(float *A, float *B, float *C)
 	C[i] = A[i] + B[i];
 }
 
+void sumMatrixOnHost(float *A, float *B, float *C, const int nx, const int ny)
+{
+    float *ia = A;
+    float *ib = B;
+    float *ic = C;
+
+    for (int iy=0; iy<ny; iy++)
+    {
+        for (int ix=0; ix<nx; ix++)
+        {
+            ic[ix] = ia[ix] + ib[ix];
+        }
+        
+        ia += nx;
+        ib += nx;
+        ic += nx;
+    }
+}
+
+__global__ void sumMatrixOnGPU(float *MatA, float *MatB, float *MatC, int nx, int ny)
+{
+    unsigned int ix = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned int iy = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned int idx = iy * nx + ix;
+
+    if (ix<nx && iy<ny)
+    {
+        MatC[idx] = MatA[idx] + MatB[idx];
+    }
+}
+
+
 int main(int argc, char **argv)
 {
 	printf("%s Strarting...\n", argv[0]);
@@ -76,12 +108,13 @@ int main(int argc, char **argv)
 	cudaSetDevice(dev);
 
 	// set up data size of vectors
-	int nElem = 1 << 27;
-	printf("Vector size %d\n", nElem);
+	int nx = 1<<14; 
+    int ny = 1<<14;
+    int nxy = nx * ny;
+    size_t nBytes = nxy * sizeof(float);
+    printf("Vector size %d\n", nxy);
 	
 	// malloc host memory
-	size_t nBytes = nElem * sizeof(float);
-
 	float *h_A, *h_B, *hostRef, *gpuRef;
 	h_A = (float *)malloc(nBytes);
 	h_B = (float *)malloc(nBytes);
@@ -90,8 +123,8 @@ int main(int argc, char **argv)
 	gpuRef = (float *)malloc(nBytes);
 	
 	// initialize data at host side
-	initialData(h_A, nElem);
-	initialData(h_B, nElem);
+	initialData(h_A, nxy);
+	initialData(h_B, nxy);
 
 	memset(hostRef, 0, nBytes);
 	memset(gpuRef, 0, nBytes);
@@ -110,27 +143,31 @@ int main(int argc, char **argv)
 	cudaMemcpy(d_B, h_B, nBytes, cudaMemcpyHostToDevice);
 	
 	// invoke kernel at host side
-	int iLen = 1024;
-	dim3 block (iLen);
-	dim3 grid ( (nElem + block.x - 1)/block.x );
+	int dimx = 32;
+    int dimy = 1;
+	dim3 block (dimx, dimy);
+	dim3 grid ( (nx + block.x - 1)/block.x, (ny + block.y -1)/block.y );
 
-	sumArraysOnGPU <<<grid, block>>> (d_A, d_B, d_C);
-	printf("Execution configuration <<<%d, %d>>>\n", grid.x, block.x);
-
-	// copy kernel result back to host side
+	sumMatrixOnGPU <<<grid, block>>> (d_A, d_B, d_C, nx, ny);
+    cudaDeviceSynchronize();
+    
+    // copy kernel result back to host side
 	cudaMemcpy(gpuRef, d_C, nBytes, cudaMemcpyDeviceToHost);
-	
-	// gpu finished time
+
+    // gpu finished time
 	double time_gpu_finish = cpuSecond();
 
+	printf("Execution configuration <<<(%d, %d), (%d, %d)>>>\n", 
+            grid.x, grid.y, block.x, block.y);
+
 	// add vector at host side for result check. 
-	sumArrayOnHost(h_A, h_B, hostRef, nElem);
+	sumMatrixOnHost(h_A, h_B, hostRef, nx, ny);
 
 	// cpu finished time
 	double time_cpu_finish = cpuSecond();
 
 	// Check device results
-	checkResult(hostRef, gpuRef, nElem);
+	checkResult(hostRef, gpuRef, nxy);
 
 	// free device global memory
 	cudaFree(d_A);

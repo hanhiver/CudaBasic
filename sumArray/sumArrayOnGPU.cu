@@ -1,6 +1,8 @@
 #include <cuda_runtime.h>
 #include <stdio.h>
 
+#include <sys/time.h>
+
 #define CHECK(call)\
 {\
 	const cudaError_t error = call;\
@@ -10,6 +12,13 @@
 		printf("code: %d, reason: %s\n", error, cudaGetErrorString(error));\
 		exit(1);\
 	}\
+}
+
+double cpuSecond()
+{
+	struct timeval tp;
+	gettimeofday(&tp, NULL);
+	return ((double)tp.tv_sec + (double)tp.tv_usec*1.0e-6);
 }
 
 void checkResult(float *hostRef, float *gpuRef, const int N)
@@ -54,7 +63,7 @@ void sumArrayOnHost(float *A, float *B, float *C, const int N)
 
 __global__ void sumArraysOnGPU(float *A, float *B, float *C)
 {
-	int i = threadIdx.x;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	C[i] = A[i] + B[i];
 }
 
@@ -67,7 +76,7 @@ int main(int argc, char **argv)
 	cudaSetDevice(dev);
 
 	// set up data size of vectors
-	int nElem = 1024;
+	int nElem = 1 << 27;
 	printf("Vector size %d\n", nElem);
 	
 	// malloc host memory
@@ -86,6 +95,9 @@ int main(int argc, char **argv)
 
 	memset(hostRef, 0, nBytes);
 	memset(gpuRef, 0, nBytes);
+	
+	// start time
+	double time_start = cpuSecond();
 
 	// malloc gpu global memory
 	float *d_A, *d_B, *d_C;
@@ -96,19 +108,26 @@ int main(int argc, char **argv)
 	// transfer data from host to gpu
 	cudaMemcpy(d_A, h_A, nBytes, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_B, h_B, nBytes, cudaMemcpyHostToDevice);
-
+	
 	// invoke kernel at host side
-	dim3 block (nElem);
-	dim3 grid (nElem/block.x);
+	int iLen = 512;
+	dim3 block (iLen);
+	dim3 grid ( (nElem + block.x - 1)/block.x );
 
 	sumArraysOnGPU <<<grid, block>>> (d_A, d_B, d_C);
 	printf("Execution configuration <<<%d, %d>>>\n", grid.x, block.x);
 
 	// copy kernel result back to host side
 	cudaMemcpy(gpuRef, d_C, nBytes, cudaMemcpyDeviceToHost);
+	
+	// gpu finished time
+	double time_gpu_finish = cpuSecond();
 
 	// add vector at host side for result check. 
 	sumArrayOnHost(h_A, h_B, hostRef, nElem);
+
+	// cpu finished time
+	double time_cpu_finish = cpuSecond();
 
 	// Check device results
 	checkResult(hostRef, gpuRef, nElem);
@@ -124,7 +143,8 @@ int main(int argc, char **argv)
 	free(hostRef);
 	free(gpuRef);
 
-	printf("Done! \n");
+	printf("CPU job Done in %lf. \n", time_cpu_finish - time_gpu_finish);
+	printf("GPU job Done in %lf. \n", time_gpu_finish - time_start);
 
 	return(0);
 }

@@ -28,10 +28,11 @@ __global__  void reduceNeighbored(int *g_idata, int *g_odata, unsigned int n)
 
 	// convert global data pointer to th local pointer of this block. 
 	int *idata = g_idata + blockIdx.x * blockDim.x;
+	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
 	// boundary check.
-	//if (idx >= n)
-	//	return;
+	if (idx >= n)
+		return;
 
 	// in-place reduction in global memory. 
 	for (int stride = 1; stride < blockDim.x; stride *= 2)
@@ -111,6 +112,7 @@ int main(int argc, char **argv)
 	iElaps = cpuSecond() - iStart;
 	printf("cpu reduce elapsed %lfs cpu seconds, sum value: %d\n", iElaps, cpu_sum);
 	
+
 
 
 	return 0;

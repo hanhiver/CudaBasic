@@ -1,5 +1,6 @@
 #include <cuda_runtime.h>
 #include <stdio.h>
+#include <math.h>
 
 #include <sys/time.h>
 
@@ -23,7 +24,7 @@ double cpuSecond()
 
 void checkResult(float *hostRef, float *gpuRef, const int N)
 {
-	double epsilon = 1.0E-8;
+	double epsilon = 1.0E-30;
 	bool match = 1;
 
 	for (int i=0; i<N; i++)
@@ -53,19 +54,6 @@ void initialData(float *ip, int size)
 	}
 }
 
-void sumArrayOnHost(float *A, float *B, float *C, const int N)
-{
-	for (int idx=0; idx<N; idx++)
-	{
-		C[idx] = A[idx] + B[idx];
-	}
-}
-
-__global__ void sumArraysOnGPU(float *A, float *B, float *C)
-{
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	C[i] = A[i] + B[i];
-}
 
 void sumMatrixOnHost(float *A, float *B, float *C, const int nx, const int ny)
 {
@@ -77,7 +65,7 @@ void sumMatrixOnHost(float *A, float *B, float *C, const int nx, const int ny)
     {
         for (int ix=0; ix<nx; ix++)
         {
-            ic[ix] = ia[ix] + ib[ix];
+            ic[ix] = sin(ia[ix]) + sin(ib[ix]);
         }
         
         ia += nx;
@@ -94,7 +82,7 @@ __global__ void sumMatrixOnGPU(float *MatA, float *MatB, float *MatC, int nx, in
 
     if (ix<nx && iy<ny)
     {
-        MatC[idx] = MatA[idx] + MatB[idx];
+        MatC[idx] = sin(MatA[idx]) + sin(MatB[idx]);
     }
 }
 
@@ -128,6 +116,9 @@ int main(int argc, char **argv)
 
 	memset(hostRef, 0, nBytes);
 	memset(gpuRef, 0, nBytes);
+	
+	// start time
+	double time_start = cpuSecond();
 
 	// malloc gpu global memory
 	float *d_A, *d_B, *d_C;
@@ -141,35 +132,21 @@ int main(int argc, char **argv)
 	
 	// invoke kernel at host side
 	int dimx = 32;
-    int dimy = 1;
-
-    if (argc > 2)
-    {
-        printf("Customized dimx: %d, dimy %d.\n", dimx, dimy);
-        dimx = atoi(argv[1]);
-        dimy = atoi(argv[2]);
-    }
-
-    dim3 block (dimx, dimy);
+    int dimy = 32;
+	dim3 block (dimx, dimy);
 	dim3 grid ( (nx + block.x - 1)/block.x, (ny + block.y -1)/block.y );
-    
-    // start time
-	double time_gpu_start = cpuSecond();
 
 	sumMatrixOnGPU <<<grid, block>>> (d_A, d_B, d_C, nx, ny);
     cudaDeviceSynchronize();
     
-    // gpu finished time
-	double time_gpu_finish = cpuSecond();
-   
     // copy kernel result back to host side
 	cudaMemcpy(gpuRef, d_C, nBytes, cudaMemcpyDeviceToHost);
 
+    // gpu finished time
+	double time_gpu_finish = cpuSecond();
+
 	printf("Execution configuration <<<(%d, %d), (%d, %d)>>>\n", 
             grid.x, grid.y, block.x, block.y);
-    
-    // reset start time for CPU. 
-    double time_cpu_start = cpuSecond();
 
 	// add vector at host side for result check. 
 	sumMatrixOnHost(h_A, h_B, hostRef, nx, ny);
@@ -191,8 +168,8 @@ int main(int argc, char **argv)
 	free(hostRef);
 	free(gpuRef);
 
-	printf("CPU job Done in %lf. \n", time_cpu_finish - time_cpu_start);
-	printf("GPU job Done in %lf. \n", time_gpu_finish - time_gpu_start);
+	printf("CPU job Done in %lf. \n", time_cpu_finish - time_gpu_finish);
+	printf("GPU job Done in %lf. \n", time_gpu_finish - time_start);
 
 	return(0);
 }

@@ -3,7 +3,7 @@
 
 #include "../common.h"
 
-#define LEN 1<<22
+#define LEN 1<<24
 
 struct innerStruct
 {
@@ -205,12 +205,14 @@ int main(int argc, char ** argv)
 	dim3 block (blocksize, 1);
 	dim3 grid ((nElem + block.x - 1) / block.x, 1);
 
+    printf("===== Structure of Array (SOA) test =====\n");
+
 	// kernel 1: warmup.
 	double iStart = seconds();
 	warmup1 <<<grid, block>>> (d_A, d_C, nElem);
 	CHECK(cudaDeviceSynchronize());
 	double iElaps = seconds() - iStart;
-	printf("warmup      <<< %3d, %3d >>> elapsed %f sec.\n", 
+	printf("warmup1     <<< %3d, %3d >>> elapsed %f sec.\n", 
 			grid.x, block.x, iElaps);
 
 	CHECK(cudaMemcpy(gpuRef, d_C, nBytes, cudaMemcpyDeviceToHost));
@@ -225,12 +227,55 @@ int main(int argc, char ** argv)
 	printf("innerstruct <<< %3d, %3d >>> elapsed %f sec.\n", 
 			grid.x, block.x, iElaps);
 	
-	// free memories both host and device. 
+    printf("===== Array of Structure (AOS) test =====\n");
+	
+    // allocate host memory. 
+    innerArray *h_Aa     = (innerArray *)malloc(nBytes);
+	innerArray *hostRefa = (innerArray *)malloc(nBytes);
+	innerArray *gpuRefa  = (innerArray *)malloc(nBytes);
+
+	// initialize host array. 
+	initialInnerArray(h_Aa, nElem);
+	testInnerArrayHost(h_Aa, hostRefa, nElem);
+
+	// allocate device memory. 
+	innerArray *d_Aa, *d_Ca;
+	CHECK(cudaMalloc((innerArray **) &d_Aa, nBytes));
+	CHECK(cudaMalloc((innerArray **) &d_Ca, nBytes));
+
+	// copy data from host to device. 
+	CHECK(cudaMemcpy(d_Aa, h_Aa, nBytes, cudaMemcpyHostToDevice));
+
+    printf("===== Array of Structure (AOS) test =====\n");
+    
+    // kernel 3 warmup2.
+	iStart = seconds();
+	warmup2 <<<grid, block>>> (d_Aa, d_Ca, nElem);
+	CHECK(cudaDeviceSynchronize());
+	iElaps = seconds() - iStart;
+	printf("warmup2     <<< %3d, %3d >>> elapsed %f sec.\n", 
+			grid.x, block.x, iElaps);
+
+    // kernel 3 testInnerArray.
+	iStart = seconds();
+	testInnerArray <<<grid, block>>> (d_Aa, d_Ca, nElem);
+	CHECK(cudaDeviceSynchronize());
+	iElaps = seconds() - iStart;
+	printf("innerArray  <<< %3d, %3d >>> elapsed %f sec.\n", 
+			grid.x, block.x, iElaps);
+
+    // free memories both host and device. 
 	CHECK(cudaFree(d_A));
 	CHECK(cudaFree(d_C));
 	free(h_A);
 	free(hostRef);
 	free(gpuRef);
+    
+    CHECK(cudaFree(d_Aa));
+	CHECK(cudaFree(d_Ca));
+	free(h_Aa);
+	free(hostRefa);
+	free(gpuRefa);
 
 	// reset device.
 	CHECK(cudaDeviceReset());

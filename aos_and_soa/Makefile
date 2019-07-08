@@ -1,4 +1,4 @@
-CU_APPS=soa aos
+CU_APPS=soa aos transpose
 
 C_APPS=
 

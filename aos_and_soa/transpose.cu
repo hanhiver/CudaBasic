@@ -39,21 +39,24 @@ void transposeHost(int *in, int *out, const int nx, const int ny)
 	}
 }
 
+// kernel 1: ready by col and write by row. 
 __global__ void transposeGpu(int *in, int *out, const int nx, const int ny)
 {
     // set thread id.
     unsigned int tid = threadIdx.x;
     unsigned int idx = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int idy = threadIdx.y + blockIdx.y * blockDim.y;
 
-    // convert global data point to the local pointer of this block. 
-    int *idata = g_idata + blockIdx.x * blockDim.x;
-
+	if (idx < nx && idy < ny)
+	{
+		out[idy * nx + idx] = in[idx * ny + idy];
+	}
 }
 
 int main(int argc, char **argv)
 {
-	int nx = 3; 
-	int ny = 2;
+	int nx = 1<<20; 
+	int ny = 1<<20;
 	int nxy = nx * ny; 
 	size_t bytes = nxy * sizeof(int);
 
@@ -61,11 +64,21 @@ int main(int argc, char **argv)
 	int *dst = (int *)malloc(bytes);
 	
 	memset(src, 0, nxy);
+	memset(dst, 0, nxy);
 
 	initialMatrix(src, nxy);
-	printMatrix(src, nx, ny);
+	//printMatrix(src, nx, ny);
     transposeHost(src, dst, nx, ny);
-    printMatrix(dst, ny, nx);
+    //printMatrix(dst, ny, nx);
+
+	// set execution configuration. 
+	dim3 block(32, 32);
+	dim3 grid( (nx+block.x-1)/block.x, (ny+block.y-1)/block.y );
+	
+	// allocate memory. 
+	int *d_src, *d_dst;
+	CHECK(cudaMalloc((int **) &d_src, bytes));
+	CHECK(cudaMalloc((int **) &d_dst, bytes));
 
 	return EXIT_SUCCESS;
 }

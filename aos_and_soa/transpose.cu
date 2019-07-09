@@ -10,23 +10,43 @@ void initialMatrix(int *data, const int size)
 {
 	for (int i=0; i<size; i++)
 	{
-		data[i] = rand();
+		data[i] = i;
 	}
+}
+
+void printMatrix(int *data, const int nx, const int ny)
+{
+    printf("\n");
+    for (int iy=0; iy<ny; iy++)
+    {
+        for (int ix=0; ix<nx; ix++)
+        {
+            printf("%d\t", data[iy*nx+ix]);
+        }
+        printf("\n");
+    }
+    printf("\n");
 }
 
 void transposeHost(int *in, int *out, const int nx, const int ny)
 {
-	for (int i=0; i<nx; i++)
+	for (int iy=0; iy<ny; iy++)
 	{
-		for (int j=0; j<ny; j++)
+		for (int ix=0; ix<nx; ix++)
 		{
-			out[i*nx + j] = in[j*ny + i];
+			out[ix*ny + iy] = in[iy*nx + ix];
 		}
 	}
 }
 
 __global__ void transposeGpu(int *in, int *out, const int nx, const int ny)
 {
+    // set thread id.
+    unsigned int tid = threadIdx.x;
+    unsigned int idx = threadIdx.x + blockIdx.x * blockDim.x;
+
+    // convert global data point to the local pointer of this block. 
+    int *idata = g_idata + blockIdx.x * blockDim.x;
 
 }
 
@@ -43,12 +63,9 @@ int main(int argc, char **argv)
 	memset(src, 0, nxy);
 
 	initialMatrix(src, nxy);
-	
-	for (int i=0; i<nxy; i++)
-	{
-		printf("%d\t", src[i]);
-	}
-	printf("\n");
+	printMatrix(src, nx, ny);
+    transposeHost(src, dst, nx, ny);
+    printMatrix(dst, ny, nx);
 
 	return EXIT_SUCCESS;
 }

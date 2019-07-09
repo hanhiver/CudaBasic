@@ -3,7 +3,6 @@
 #include <time.h>
 #include <unistd.h>
 
-
 #define CHECK(call)                                                            \
 {                                                                              \
     const cudaError_t error = call;                                            \
@@ -29,9 +28,12 @@ __global__ void gpu_sleep(const int sleep_time)
 int main(int argc, char **argv)
 {
     // set up device. 
+    int dev_count;
     int dev = 0;
     cudaDeviceProp dprop;
+    CHECK(cudaGetDeviceCount(&dev_count));
     CHECK(cudaGetDeviceProperties(&dprop, dev));
+    printf("There are %d devices in the system. \n", dev_count);
     printf("%s start at device %d: %s \n", argv[0], dev, dprop.name);
     CHECK(cudaSetDevice(dev));
     
@@ -52,7 +54,7 @@ int main(int argc, char **argv)
     dim3 grid (1);
 
     // kernel: sleep.
-    gpu_sleep <<<block, grid>>> (sleep_time);
+    gpu_sleep <<<grid, block>>> (sleep_time);
     
     sleep(sleep_time);
 

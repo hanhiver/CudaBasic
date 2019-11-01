@@ -1,15 +1,16 @@
 #include <iostream> 
-#include <cstdlib> 
+#include <cstdio> 
 
 __global__ void helloFromGPU(void)
 {
-    printf("Hello from GPU. \n");
+    printf("Hello from GPU - block: %d - thread: %d. \n", blockIdx.x, threadIdx.x);
 }
 
 int main()
 {
     std::cout << "Hello from CPU. " << std::endl; 
-    helloFromGPU<<<1, 10>>>(); 
-    cudaDeviceReset();
+    helloFromGPU<<<2, 5>>>(); 
+    //cudaDeviceReset();
+    cudaDeviceSynchronize();
     return 0; 
 }

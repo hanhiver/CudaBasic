@@ -10,9 +10,9 @@
             "args": [
                 "-std=c++11",
                 "-arch", 
-                "sm_60",
+                "sm_50",
                 "-ccbin",
-                "/usr/bin",
+                "/usr/bin/",
                 "-o",
                 "${fileDirname}/${fileBasenameNoExtension}.out",
                 "${file}",

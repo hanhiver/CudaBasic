@@ -26,7 +26,7 @@ void initialData(float *ip, int size)
 
 int main(int argc, char* argv[])
 {
-    int nElem = 10; 
+    int nElem = 1024; 
     size_t nBytes = nElem * sizeof(float);
 
     float *h_A, *h_B, *h_C; 

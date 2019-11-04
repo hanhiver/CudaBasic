@@ -1,28 +1,28 @@
 #include <iostream> 
-#include <queue> 
+#include <vector> 
 #include <chrono> 
 #include <thread> 
 
 class memory_keeper
 {
 private: 
-    std::queue<void*> _memory;
-    const size_t _block_size = 128 * 1024 * 1024; 
+    std::vector<void*> _memory;
+    const size_t _block_size = 128 * 1024 * 1024; //128MB. 
     size_t _blocks;  
 
     void allocate_block()
     {
         void *block; 
         cudaMalloc(&block, _block_size); 
-        _memory.push(block); 
+        _memory.push_back(block); 
         ++ _blocks; 
     }
 
     void free_block()
     {
-        void *block = _memory.front();
+        void *block = _memory.back();
         cudaFree(block); 
-        _memory.pop();
+        _memory.pop_back();
         -- _blocks;
     }
 
@@ -38,6 +38,11 @@ public:
             cudaFree(block); 
         }
         _blocks = 0; 
+    }
+
+    size_t get_blocks()
+    {
+        return _blocks; 
     }
 
     bool allocate(size_t blocks)
@@ -63,12 +68,28 @@ public:
 
         return true; 
     }
+
+    bool reallocate()
+    {
+        size_t original_blocks = _blocks;
+
+        while (_blocks > 0)
+        {
+            free_block();
+        }
+
+        for (size_t i=0; i<original_blocks; ++i)
+        {
+            allocate_block(); 
+        }
+        return true; 
+    }
 };
 
 int main()
 {
     memory_keeper mk; 
-    //using namespace std::chrono_literals; 
+    //c++17, no support. using namespace std::chrono_literals; 
     std::cout << "Try to allocate 1G mem: " << std::endl; 
     mk.allocate(8); 
     std::cout << "Done, sleep for 5 seconds. " << std::endl; 
